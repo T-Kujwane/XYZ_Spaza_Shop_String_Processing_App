@@ -21,9 +21,7 @@ public class ItemsProcessorApp {
         // TODO code application logic here
         String[] inventory = {"Simba_Salt&Vin&&50&&R17", "Switch_Energy&&60&&R10", "Topper_Mint&&43&&R12"};
         String[] newInventory = Arrays.copyOf(inventory, inventory.length);
-
-        int lastItemIndex = newInventory.length - 1;
-
+        
         Scanner scanner = new Scanner(System.in);
 
         boolean managerWantsToClose = false;
@@ -37,90 +35,92 @@ public class ItemsProcessorApp {
             if (!isValidUserType) {
                 System.err.println("Invalid user type option. Try again.\n");
             } else {
-
                 String loginCredentials;
                 boolean hasValidLoginCredentials;
 
-                do {
-                    loginCredentials = getLoginCredentials(scanner);
-                    //hasValidLoginCredentials = validateManagerCredentials(loginCredentials) || validateUserCredentials(loginCredentials);
-                    hasValidLoginCredentials = validateManagerCredentials(loginCredentials);
-                    if (!hasValidLoginCredentials) {
-                        System.err.println("Invalid login credentials. Try again.");
-                    }
-                } while (!hasValidLoginCredentials);
-
                 if (loggedInUser == 1) {
 
-                    int managerMenuOption;
-                    boolean isValidManagerOption;
-
                     do {
-                        managerMenuOption = getManagerMenuOption(scanner);
-                        isValidManagerOption = validateManagerMenuOption(managerMenuOption);
-
-                        if (!isValidManagerOption) {
-                            System.err.println("Invalid menu option entered. Try again.\n");
+                        loginCredentials = getLoginCredentials(scanner);
+                        //hasValidLoginCredentials = validateManagerCredentials(loginCredentials) || validateUserCredentials(loginCredentials);
+                        hasValidLoginCredentials = validateManagerCredentials(loginCredentials);
+                        if (!hasValidLoginCredentials) {
+                            System.err.println("Invalid login credentials. Try again.");
                         }
-                    } while (!isValidManagerOption);
+                    } while (!hasValidLoginCredentials);
+                    boolean managerIsLogeedIn = true;
 
-                    managerWantsToClose = managerMenuOption == 3;
-
-                    if (!managerWantsToClose) {
+                    while (managerIsLogeedIn && !managerWantsToClose) {
                         displayItems(loggedInUser, newInventory);
-                        if (managerMenuOption == 1) {
-                            String itemString;
-                            boolean itemHasValidFormat, qtyIsNumeric = true, priceIsNumeric = true;
+                        int managerMenuOption;
+                        boolean isValidManagerOption;
 
-                            do {
-                                itemString = getNewItem(scanner);
-                                itemHasValidFormat = validateItemFormat(itemString);
+                        do {
+                            managerMenuOption = getManagerMenuOption(scanner);
+                            isValidManagerOption = validateManagerMenuOption(managerMenuOption);
 
-                                if (!itemHasValidFormat) {
-                                    System.err.println("Invalid format used. Try again.\n");
-                                } else {
-                                    String[] splitItemData = itemString.split("&&");
-                                    String qtyString = splitItemData[1];
+                            if (!isValidManagerOption) {
+                                System.err.println("Invalid menu option entered. Try again.\n");
+                            }
+                        } while (!isValidManagerOption);
 
-                                    qtyIsNumeric = validateNumericEntry(qtyString);
+                        managerWantsToClose = managerMenuOption == 3;
 
-                                    if (!qtyIsNumeric) {
-                                        System.err.println("Invalid numeric format for quantity (qty).\n");
+                        if (!managerWantsToClose) {
+                            if (managerMenuOption == 1) {
+                                String itemString;
+                                boolean itemHasValidFormat, qtyIsNumeric = true, priceIsNumeric = true;
+
+                                do {
+                                    itemString = getNewItem();
+                                    itemHasValidFormat = validateItemFormat(itemString);
+
+                                    if (!itemHasValidFormat) {
+                                        System.err.println("Invalid format used. Try again.\n");
                                     } else {
-                                        String priceString = splitItemData[2].toUpperCase().split("=")[1].replace("R", "");
-                                        priceIsNumeric = validateNumericEntry(priceString);
+                                        String[] splitItemData = itemString.split("&&");
+                                        String qtyString = splitItemData[1].split("=")[1];
+                                        
+                                        qtyIsNumeric = validateNumericEntry(qtyString);
 
-                                        if (!priceIsNumeric) {
-                                            System.err.println("Invalid numeric entry for price.");
+                                        if (!qtyIsNumeric) {
+                                            System.err.println("Invalid numeric format for quantity (qty).\n");
+                                        } else {
+                                            String priceString = splitItemData[2].toUpperCase().split("=")[1].replace("R", "");
+                                            priceIsNumeric = validateNumericEntry(priceString);
+
+                                            if (!priceIsNumeric) {
+                                                System.err.println("Invalid numeric entry for price.");
+                                            }
                                         }
                                     }
+                                } while (!(itemHasValidFormat && qtyIsNumeric && priceIsNumeric));
+
+                                String itemName = getItemName(itemString);
+
+                                int itemIndex = getItemIndex(newInventory, itemName);
+
+                                if (itemIndex == -1) {
+                                    newInventory = Arrays.copyOf(newInventory, newInventory.length + 1);
+                                    int lastItemIndex = newInventory.length - 1;
+
+                                    int itemQty = getItemQuantity(itemString);
+                                    double itemPrice = getItemPrice(itemString);
+
+                                    newInventory[lastItemIndex] = itemName + "&&" + itemQty + "&&R" + itemPrice;
+                                    System.out.println("New item successfully added.");
+                                } else {
+                                    String item = newInventory[itemIndex];
+                                    int itemQty = getItemQuantity(item);
+
+                                    int newItemQty = getItemQuantity(itemString) + itemQty;
+
+                                    newInventory[itemIndex] = item.replace(String.valueOf(itemQty), String.valueOf(newItemQty));
+                                    System.out.println("Existing item quantity incremented.");
                                 }
-                            } while (!(itemHasValidFormat && qtyIsNumeric && priceIsNumeric));
-
-                            String itemName = getItemName(itemString);
-
-                            int itemIndex = getItemIndex(newInventory, itemName);
-
-                            if (itemIndex == -1) {
-                                newInventory = Arrays.copyOf(newInventory, newInventory.length + 1);
-                                lastItemIndex = newInventory.length - 1;
-
-                                int itemQty = getItemQuantity(itemString);
-                                double itemPrice = getItemPrice(itemString);
-
-                                newInventory[lastItemIndex] = itemName + "&&" + itemQty + "&&R" + itemPrice;
-
                             } else {
-                                String item = newInventory[itemIndex];
-                                int itemQty = getItemQuantity(item);
-
-                                int newItemQty = getItemQuantity(itemString) + itemQty;
-
-                                newInventory[itemIndex] = item.replace(String.valueOf(itemQty), String.valueOf(newItemQty));
-
+                                managerIsLogeedIn = false;
                             }
-                        } else {
-                            continue;
                         }
                     }
                 } else {
@@ -177,9 +177,9 @@ public class ItemsProcessorApp {
         return custNo >= 1 && custNo <= 10 && password.equals("I*amCustomer" + custNo);
     }
 
-    private static String getNewItem(Scanner scanner) {
+    private static String getNewItem() {
         System.out.print("Enter the new items to add in the format ite=\"itemName1\"&&qty=num&&pri=Rprice: ");
-        return scanner.nextLine();
+        return new Scanner(System.in).nextLine();
     }
 
     private static boolean validateItemFormat(String newItemString) {
@@ -239,11 +239,11 @@ public class ItemsProcessorApp {
             DecimalFormat df = new DecimalFormat("0.00");
             displayHeaders(loggedInUser);
             for (String item : inventory) {
-                
+
                 String itemName = getItemName(item);
                 double itemPrice = getItemPrice(item);
                 if (loggedInUser == 1) {
-                    System.out.println(itemName + "\t" + getItemQuantity(item) + "\tR" + df.format(itemPrice));
+                    System.out.println(itemName + "\t" + getItemQuantity(item) + "\t\tR" + df.format(itemPrice));
                 } else {
                     System.out.println(itemName + "\t" + "\tR" + df.format(itemPrice));
                 }
