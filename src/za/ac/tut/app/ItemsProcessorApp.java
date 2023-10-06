@@ -6,6 +6,7 @@ package za.ac.tut.app;
 
 import java.text.DecimalFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Scanner;
 
 /**
@@ -19,9 +20,9 @@ public class ItemsProcessorApp {
      */
     public static void main(String[] args) {
         // TODO code application logic here
-        String[] inventory = {"Simba_Salt&Vin&&50&&R17", "Switch_Energy&&60&&R10", "Topper_Mint&&43&&R12"};
-        String[] newInventory = Arrays.copyOf(inventory, inventory.length);
-        
+        String[] defaultInventory = {"Simba_Salt&Vin&&50&&R17", "Switch_Energy&&60&&R10", "Topper_Mint&&43&&R12"};
+        String[] newInventory = Arrays.copyOf(defaultInventory, defaultInventory.length);
+
         Scanner scanner = new Scanner(System.in);
 
         boolean managerWantsToClose = false;
@@ -42,7 +43,6 @@ public class ItemsProcessorApp {
 
                     do {
                         loginCredentials = getLoginCredentials(scanner);
-                        //hasValidLoginCredentials = validateManagerCredentials(loginCredentials) || validateUserCredentials(loginCredentials);
                         hasValidLoginCredentials = validateManagerCredentials(loginCredentials);
                         if (!hasValidLoginCredentials) {
                             System.err.println("Invalid login credentials. Try again.");
@@ -78,9 +78,9 @@ public class ItemsProcessorApp {
                                     if (!itemHasValidFormat) {
                                         System.err.println("Invalid format used. Try again.\n");
                                     } else {
-                                        String[] splitItemData = itemString.split("&&");
+                                        String[] splitItemData = split(itemString, "&&");
                                         String qtyString = splitItemData[1].split("=")[1];
-                                        
+
                                         qtyIsNumeric = validateNumericEntry(qtyString);
 
                                         if (!qtyIsNumeric) {
@@ -124,7 +124,83 @@ public class ItemsProcessorApp {
                         }
                     }
                 } else {
+                    do {
+                        loginCredentials = getLoginCredentials(scanner);
+                        hasValidLoginCredentials = validateCustomerCredentials(loginCredentials);
+                        if (!hasValidLoginCredentials) {
+                            System.err.println("Invalid login credentials. Try again.");
+                        }
+                    } while (!hasValidLoginCredentials);
 
+                    boolean userIsLogginOut = false;
+
+                    while (!userIsLogginOut) {
+                        
+                        displayItems(loggedInUser, newInventory);
+                        int userItem;
+                        boolean userMadeValidSelection;
+                        
+                        do {
+                            userItem = getUserItem(scanner);
+                            userMadeValidSelection = validateUserItemChoice(userItem, newInventory);
+                            userIsLogginOut = userItem == -1;
+
+                            if (!userMadeValidSelection) {
+                                System.err.println("Invalid item option entered. Try again.");
+                            }
+                        } while (!userMadeValidSelection);
+                        
+                        if (!userIsLogginOut) {
+                            
+                            int quantity;
+                            boolean hasEnoughSupply, isAvailable, isValidQty;
+                            String purchasedItemName = getItemName(newInventory[--userItem]);
+                            
+                            do {
+                                quantity = getDesiredQuantity(purchasedItemName, scanner);
+                                isAvailable = determineIfAvailable(userItem, newInventory);
+                                
+                                isValidQty = quantity > 0;
+                                
+                                if (!isAvailable) {
+                                    System.err.println(purchasedItemName + " is out of stock.");
+                                    break;
+                                } else if (isValidQty) {
+                                    hasEnoughSupply = determineIfHasSufficientSupply(quantity, newInventory, userItem);
+
+                                    if (!hasEnoughSupply) {
+                                        System.err.println("Requested quantity is more than available. Please reduce.");
+                                    }
+                                }else {
+                                    System.err.println("Invalid quantity requested. Quantity cannot be less than 1.");
+                                    hasEnoughSupply = true;
+                                }
+                            } while (!hasEnoughSupply || !isValidQty);
+
+                            if (isAvailable) {
+                                decrementQuantity(quantity, userItem, newInventory);
+                                double amountDue = getItemPrice(newInventory[userItem]) * quantity;
+                                double payment;
+
+                                boolean isSufficientPayment;
+
+                                do {
+                                    System.out.print("Enter payment for " + quantity + " " + purchasedItemName + " due at R" + amountDue + ": ");
+                                    payment = scanner.nextDouble();
+
+                                    isSufficientPayment = payment >= amountDue;
+
+                                    if (!isSufficientPayment) {
+                                        System.err.println("The amount payed is insufficient ot cover the R" + amountDue + " amount due.");
+                                    }
+                                } while (!isSufficientPayment);
+
+                                double change = payment - amountDue;
+                                
+                                displayReceipt(purchasedItemName, quantity, amountDue, payment, change);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -163,18 +239,21 @@ public class ItemsProcessorApp {
     }
 
     private static boolean validateManagerCredentials(String loginCredentials) {
-        String[] splitCreds = loginCredentials.split("--");
+        String[] splitCreds = split(loginCredentials, "--");
         return splitCreds[0].equalsIgnoreCase("xyz_man@xyzspaza.co.za") && splitCreds[1].equals("man1@manager");
     }
 
-    private static boolean validateUserCredentials(String loginCredentials) {
-        String[] splitCreds = loginCredentials.split("--");
+    private static boolean validateCustomerCredentials(String loginCredentials) {
+        String[] splitCreds = split(loginCredentials, "--");
         String userName = splitCreds[0];
         String password = splitCreds[1];
 
-        int custNo = Integer.parseInt(userName.split("@")[0].substring(userName.split("@")[0].length() - 2));
+        //cust2@xyzspaza.co.za  || cust02@xyzspaza.co.za
+        String custNoStr = split(userName, "@")[0].toLowerCase().replace("cust", "");
 
-        return custNo >= 1 && custNo <= 10 && password.equals("I*amCustomer" + custNo);
+        int custNo = Integer.parseInt(custNoStr);
+
+        return custNo >= 1 && custNo <= 10 && password.equals("I*amCustomer" + custNoStr);
     }
 
     private static String getNewItem() {
@@ -182,13 +261,17 @@ public class ItemsProcessorApp {
         return new Scanner(System.in).nextLine();
     }
 
+    private static String[] split(String splitString, String delimeter) {
+        return splitString.split(delimeter);
+    }
+
     private static boolean validateItemFormat(String newItemString) {
-        String[] splitItemData = newItemString.split("&&");
+        String[] splitItemData = split(newItemString, "&&");
 
         return splitItemData.length == 3
-                && splitItemData[0].substring(0, 4).equalsIgnoreCase("ite=")
-                && splitItemData[1].substring(0, 4).equalsIgnoreCase("qty=")
-                && splitItemData[2].substring(0, 4).equalsIgnoreCase("pri=");
+                && split(splitItemData[0], "=")[0].equalsIgnoreCase("ite")
+                && split(splitItemData[1], "=")[0].equalsIgnoreCase("qty")
+                && split(splitItemData[2], "=")[0].equalsIgnoreCase("pri");
     }
 
     private static boolean validateNumericEntry(String numericString) {
@@ -197,26 +280,25 @@ public class ItemsProcessorApp {
                 return false;
             }
         }
-
         return true;
     }
 
     private static String getItemName(String itemString) {
-        return itemString.split("&&")[0].replace("ite=", "");
+        return split(itemString, "&&")[0].replace("ite=", "").replace("\"", "");
     }
 
     private static int getItemQuantity(String itemString) {
-        String itemQtyString = itemString.split("&&")[1];
+        String itemQtyString = split(itemString, "&&")[1];
         int itemQty = itemQtyString.contains("qty=") ? Integer.parseInt(itemQtyString.replace("qty=", "")) : Integer.parseInt(itemQtyString);
         return itemQty;
     }
 
     private static double getItemPrice(String itemString) {
-        String[] splitItemData = itemString.split("&&");
+        String[] splitItemData = split(itemString, "&&");
         String itemPriceStr = splitItemData[2];
 
         double itemPrice = itemPriceStr.toLowerCase().contains("pri")
-                ? Double.parseDouble(itemPriceStr.split("=")[1].toUpperCase().replace("R", ""))
+                ? Double.parseDouble(split(itemPriceStr, "=")[1].toUpperCase().replace("R", ""))
                 : Double.parseDouble(itemPriceStr.replace("R", ""));
 
         return itemPrice;
@@ -238,17 +320,17 @@ public class ItemsProcessorApp {
         if (inventory.length != 0) {
             DecimalFormat df = new DecimalFormat("0.00");
             displayHeaders(loggedInUser);
-            for (String item : inventory) {
 
+            for (int i = 0; i < inventory.length; ++i) {
+                String item = inventory[i];
                 String itemName = getItemName(item);
                 double itemPrice = getItemPrice(item);
                 if (loggedInUser == 1) {
                     System.out.println(itemName + "\t" + getItemQuantity(item) + "\t\tR" + df.format(itemPrice));
                 } else {
-                    System.out.println(itemName + "\t" + "\tR" + df.format(itemPrice));
+                    System.out.println((i + 1) + ". " + itemName + "\t" + "\tR" + df.format(itemPrice));
                 }
             }
-
         } else {
             System.out.println("No items to display.");
         }
@@ -256,9 +338,61 @@ public class ItemsProcessorApp {
 
     private static void displayHeaders(int loggedInUser) {
         if (loggedInUser == 1) {
-            System.out.println("Item\t\tQuantity\tPrice");
+            System.out.println("\nItem\t\tQuantity\tPrice");
         } else {
-            System.out.println("Item\tPrice");
+            System.out.println("\nItem\t\t\tPrice");
         }
+    }
+
+    private static int getUserItem(Scanner sc) {
+        System.out.print("Enter the number corresponding with your desired item or -1 to sign-out: ");
+        int userItem = sc.nextInt();
+        return userItem;
+    }
+
+    private static boolean validateUserItemChoice(int userChoice, String[] inventory) {
+        return (userChoice >= -1 && userChoice <= inventory.length);
+    }
+
+    private static int getDesiredQuantity(String item, Scanner scanner) {
+        System.out.print("Enter the desired number of " + item + " to purchase: ");
+        return scanner.nextInt();
+    }
+
+    private static boolean determineIfAvailable(int itemIndex, String[] inventory) {
+        int itemQuantity = getItemQuantity(inventory[itemIndex]);
+        return itemQuantity > 0;
+    }
+
+    private static boolean determineIfHasSufficientSupply(int desiredQuantity, String[] inventory, int itemIndex) {
+        int availQuantity = getItemQuantity(inventory[itemIndex]);
+
+        return availQuantity >= desiredQuantity;
+    }
+
+    private static void decrementQuantity(int purchasedQuantity, int purchasedItem, String[] inventory) {
+        String item = inventory[purchasedItem];
+        int initQty = getItemQuantity(item);
+
+        int updatedQuantity = initQty - purchasedQuantity;
+
+        inventory[purchasedItem] = item.replace(String.valueOf(initQty), String.valueOf(updatedQuantity));
+    }
+
+    public static void displayReceipt(String purchasedItem, int quantity, double amountDue, double amountPaid, double change) {
+        DecimalFormat df = new DecimalFormat("0.00");
+        //cust2@xyzspaza.co.za--I*amCustomer2
+        //xyz_man@xyzspaza.co.za--man1@manager
+        System.out.println("-----------------------------------------------------\n"
+                + "\t\tTransaction successfull\n"
+                + "-----------------------------------------------------\n"
+                + "The transaction performed above was successful. See transaction details below\n"
+                + "Purchased item: " + purchasedItem + "\n"
+                + "Quantity: " + quantity + "\n"
+                + "Amount due: R" + df.format(amountDue) + "\n"
+                + "Cash tendered: R" + df.format(amountPaid) + "\n"
+                + "Change issued: R" + df.format(change) + "\n"
+                + "Transaction completion date: " + new Date() + "\n" //Just messing around here
+                + "-----------------------------------------------------\n");
     }
 }
